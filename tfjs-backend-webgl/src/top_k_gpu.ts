@@ -36,7 +36,6 @@ export class SwapProgram implements GPGPUProgram {
   // |inc| Swaps pairs of indices (0, inc), (1, inc + 1), (2, inc + 2) ...
   customUniforms = [
     {name: 'n', type: 'int' as UniformType},
-    {name: 'firstPass', type: 'int' as UniformType},
     {name: 'negativeInf', type: 'float' as UniformType},
     {name: 'dir', type: 'int' as UniformType},
     {name: 'inc', type: 'int' as UniformType}
@@ -46,7 +45,7 @@ export class SwapProgram implements GPGPUProgram {
    * @param shape desired output shape (can be larger than input shape, output
    *                                    will be padded with -Infinity)
    */
-  constructor(shape: number[]) {
+  constructor(shape: number[], firstPass: boolean) {
     this.outputShape = shape;
 
     this.userCode = `
@@ -70,8 +69,8 @@ export class SwapProgram implements GPGPUProgram {
          bool isFirstInPair = imod(elemIdx, 2 * inc) < inc;
          int i = isFirstInPair ? elemIdx : elemIdx - inc;
 
-         int i0 = firstPass == 1 ? i : int(getIndices(batch, i));
-         int i1 = firstPass == 1 ? i + inc : int(getIndices(batch, i + inc));
+         int i0 = ${firstPass ? 'i' : 'int(getIndices(batch, i))'};
+         int i1 = ${firstPass ? 'i + inc' : 'int(getIndices(batch, i + inc))'};
          float x0 = i0 < n ? getX(batch, i0) : negativeInf;
          float x1 = i1 < n ? getX(batch, i1) : negativeInf;
 
@@ -103,14 +102,13 @@ export class MergeProgram implements GPGPUProgram {
   // |k| Top k elements desired
   customUniforms = [
     {name: 'n', type: 'int' as UniformType},
-    {name: 'firstPass', type: 'int' as UniformType},
     {name: 'k', type: 'int' as UniformType}
   ];
 
   /**
    * @param shape desired output shape (must be half of the input size)
    */
-  constructor(shape: number[]) {
+  constructor(shape: number[], firstPass: boolean) {
     this.outputShape = shape;
 
     this.userCode = `
@@ -139,8 +137,8 @@ export class MergeProgram implements GPGPUProgram {
          // 16,17,18,19, so on and so forth.
 
          int i = elemIdx < k ? elemIdx : (elemIdx * 2 - imod(elemIdx, k));
-         int i0 = firstPass == 1 ? i : int(getIndices(batch, i));
-         int i1 = firstPass == 1 ? i + k : int(getIndices(batch, i + k));
+         int i0 = ${firstPass ? 'i' : 'int(getIndices(batch, i))'};
+         int i1 = ${firstPass ? 'i + k' : 'int(getIndices(batch, i + k))'};
 
          float x0 = getX(batch, i0);
          float x1 = i1 < n ? getX(batch, i1) : x0;
